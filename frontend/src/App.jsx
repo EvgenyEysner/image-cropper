@@ -18,9 +18,11 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
+
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 
-const API_BASE_URL = "http://127.0.0.1:8010";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8010";
 
 export default function App() {
   const [files, setFiles] = useState([]);
@@ -28,8 +30,7 @@ export default function App() {
   const [quality, setQuality] = useState(90);
   const [bgColor, setBgColor] = useState("white");
   const [useHighQuality, setUseHighQuality] = useState(false);
-  const [forceOpaqueForeground, setForceOpaqueForeground] = useState(true);
-  const [alphaThreshold, setAlphaThreshold] = useState(160);
+  const [modelHint, setModelHint] = useState("high-quality");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState([]);
@@ -59,10 +60,9 @@ export default function App() {
       formData.append("format", format);
       formData.append("quality", String(quality));
       formData.append("bg_color", bgColor);
-      formData.append("force_opaque_foreground", String(forceOpaqueForeground));
-      formData.append("alpha_threshold", String(alphaThreshold));
+      formData.append("model_hint", modelHint);
 
-      const response = await fetch(`${API_BASE_URL}/freistellung/upload-batch`, {
+      const response = await fetch(`${API_BASE_URL}/cropping-image/upload-batch`, {
         method: "POST",
         body: formData,
       });
@@ -125,6 +125,19 @@ export default function App() {
                 helperText='z.B. "white", "black", "#ffffff"'
                 sx={{ minWidth: 220 }}
               />
+
+              <TextField
+                select
+                label="Modell"
+                value={modelHint}
+                onChange={(e) => setModelHint(e.target.value)}
+                sx={{ minWidth: 200 }}
+              >
+                <MenuItem value="product">Produkt (schnell, scharf)</MenuItem>
+                <MenuItem value="high-quality">High Quality (langsamer)</MenuItem>
+                <MenuItem value="person">Person / Körper</MenuItem>
+                <MenuItem value="general">Allgemein (sehr schnell)</MenuItem>
+              </TextField>
             </Stack>
 
             <Stack spacing={1}>
@@ -166,34 +179,6 @@ export default function App() {
                   />
                 }
                 label="High Quality Schnellschalter"
-              />
-            </Stack>
-
-            <Stack spacing={1}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={forceOpaqueForeground}
-                    onChange={(e) => setForceOpaqueForeground(e.target.checked)}
-                  />
-                }
-                label="Vordergrund undurchsichtig erzwingen (gegen Durchsichtigkeit)"
-              />
-              <FormLabel>Alpha-Schwelle: {alphaThreshold}</FormLabel>
-              <Slider
-                value={alphaThreshold}
-                min={1}
-                max={255}
-                step={1}
-                marks={[
-                  { value: 120, label: "120" },
-                  { value: 160, label: "160" },
-                  { value: 200, label: "200" },
-                ]}
-                onChange={(_, value) =>
-                  setAlphaThreshold(Array.isArray(value) ? value[0] : value)
-                }
-                disabled={!forceOpaqueForeground}
               />
             </Stack>
 
