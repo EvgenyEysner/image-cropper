@@ -1,0 +1,14 @@
+[project]
+name = "image-cropper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.135.2",
+    "pillow>=12.1.1",
+    "pydantic>=2.12.5",
+    "python-multipart>=0.0.20",
+    "rembg>=2.0.74",
+    "uvicorn>=0.42.0",
+]
