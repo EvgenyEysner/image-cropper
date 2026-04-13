@@ -22,7 +22,7 @@ services:
         VITE_API_BASE_URL: /api
     container_name: image-cropper-frontend
     ports:
-      - "8080:80"
+      - "3030:80"
     depends_on:
       backend:
         condition: service_healthy
