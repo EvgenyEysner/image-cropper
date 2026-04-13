@@ -1,7 +1,10 @@
 import io
 from typing import Any
-
+import numpy as np
 from PIL import Image, ImageFilter
+from scipy.ndimage import binary_erosion
+from scipy.ndimage import binary_dilation
+from scipy.ndimage import label as ndlabel
 
 MAX_FILE_SIZE_MB = 20
 
@@ -24,7 +27,7 @@ def validate_image(img_bytes: bytes) -> None:
 # --- Adaptive Hintergrund-Erkennung ---
 def detect_bg_brightness(img_bytes: bytes) -> str:
     """
-    Samplet einen schmalen Randstreifen (robuster als 4 Ecken)
+    Bildet einen schmalen Randstreifen (robuster als 4 Ecken)
     und gibt 'light' oder 'dark' zurück.
     """
     img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -51,15 +54,6 @@ def detect_bg_brightness(img_bytes: bytes) -> str:
 def get_matting_params() -> dict[str, Any]:
     """
     rembg-Basisparameter für alle Bilder.
-
-    post_process_mask=False: rembg's internes post_process macht
-    gaussian_filter(sigma=2) + threshold@127, was niedrig-konfidente Pixel
-    (z. B. graue Sohle auf weißem HG, alpha ~30–80) auf 0 setzt.
-    Das eigene Cleanup in clean_alpha_edges arbeitet mit viel niedrigerem
-    Threshold und ist schonender.
-
-    alpha_matting=False: PyMatting ist zu langsam für Batch-Betrieb und
-    bringt bei birefnet-general keinen messbaren Qualitätsvorteil.
     """
     return dict(alpha_matting=False, post_process_mask=False)
 
@@ -69,14 +63,13 @@ def clean_alpha_edges(img: Image.Image, bg: str) -> Image.Image:
     Heller HG — selektives Cleanup:
         Entfernt nur Pixel mit NIEDRIGEM Alpha (nach Blur < 2) UND DUNKLER
         Farbe (brightness < 50).
-        • Bewahrt: niedrig-alpha HELLE Pixel  → graue Gummisohle (~140 brightness)
-        • Entfernt: niedrig-alpha DUNKLE Pixel → Schatten/Vignette (~15 brightness)
+        Bewahrt: niedrig-alpha HELLE Pixel  → graue Gummisohle (~140 brightness)
+        Entfernt: niedrig-alpha DUNKLE Pixel → Schatten/Vignette (~15 brightness)
 
     Dunkler HG — minimales Smoothing:
         threshold=2 entfernt nur einzelne Rausch-Pixel.
         Tiefere Bereinigung übernimmt decontaminate_dark_edges.
     """
-    import numpy as np
 
     if bg == "dark":
         r, g, b, a = img.split()
@@ -115,8 +108,6 @@ def decontaminate_dark_edges(img: Image.Image) -> Image.Image:
     Innen liegende dunkle Pixel (z. B. schwarzer Text auf Handschuhen)
     liegen tiefer als 3 px im Inneren und werden durch Zone 1 nicht berührt.
     """
-    import numpy as np
-    from scipy.ndimage import binary_erosion
 
     arr = np.array(img, dtype=np.uint16)
     r, g, b, a = arr[..., 0], arr[..., 1], arr[..., 2], arr[..., 3]
@@ -138,20 +129,7 @@ def decontaminate_dark_edges(img: Image.Image) -> Image.Image:
 def expand_mask_into_product(img: Image.Image, expand_px: int = 4) -> Image.Image:
     """
     Erweitert die Vordergrund-Maske in direkt angrenzende nicht-weiße Produktpixel.
-
-    Problem: birefnet setzt niedrig-kontrast Produktteile (z. B. graue Gummisohle,
-    brightness ~130–155) auf alpha=0 obwohl sie Teil des Produkts sind.
-
-    Lösung: Sicher erkannte Produktpixel (alpha > 127) als Seed verwenden und
-    expand_px Pixel in Richtung dunklerer Pixel erweitern.
-
-    Schwellenwert brightness < 175:
-        • Graue Sohle (~130–155)  → wird hinzugefügt        ✓
-        • Produktschatten (~185+) → wird NICHT hinzugefügt  ✓  (verhindert schwarzen Rand)
-        • Weißer HG (~250+)       → wird NICHT hinzugefügt  ✓
-    """
-    import numpy as np
-    from scipy.ndimage import binary_dilation
+    """ 
 
     arr = np.array(img, dtype=np.uint8)
     r, g, b, a = arr[..., 0], arr[..., 1], arr[..., 2], arr[..., 3]
@@ -193,15 +171,7 @@ def remove_small_components(
 ) -> Image.Image:
     """
     Entfernt isolierte Fremdkörper neben dem Hauptprodukt (z. B. Logo-Schild).
-
-    Behält nur Regionen, die >= min_fraction (70 %) der größten Region sind.
-    Kalibriert auf echten Produktfotos:
-      • Zwei gleiche Produkte (z. B. Handschuh-Paar): ~97–99 %  → beide behalten
-      • Unverwandtes Logo-Schild neben der Weste:     ~59 %    → wird entfernt
-      • Einzelprodukt:                                 1 Region → keine Änderung
     """
-    import numpy as np
-    from scipy.ndimage import label as ndlabel
 
     arr = np.array(img, dtype=np.uint8)
     alpha = arr[..., 3]

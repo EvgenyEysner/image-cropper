@@ -37,7 +37,7 @@ DEFAULT_HINT = "high-quality"  # birefnet-general: das Beste für Produktfotos
 # gleichzeitig laden — das würde OOM / Hänger verursachen.
 _thread_local = threading.local()
 _model_load_lock = threading.Lock()
-executor = ThreadPoolExecutor(max_workers=2)  # 2 statt 4: weniger RAM, stabiler
+executor = ThreadPoolExecutor(max_workers=2)  # 2 weniger RAM, stabiler
 
 
 def get_session(hint: str = DEFAULT_HINT) -> Any:
@@ -51,7 +51,9 @@ def get_session(hint: str = DEFAULT_HINT) -> Any:
         with _model_load_lock:
             # Nochmal prüfen — anderer Thread könnte inzwischen geladen haben
             if model_name not in sessions:
-                logger.info(f"Lade rembg-Modell: {model_name} [{threading.current_thread().name}]")
+                logger.info(
+                    f"Lade rembg-Modell: {model_name} [{threading.current_thread().name}]"
+                )
                 sessions[model_name] = new_session(model_name)
     return sessions[model_name]
 
@@ -91,13 +93,18 @@ def _cropping_to_buffer(
     resolved_hint = _resolve_model_hint(model_hint, bg)
     matting_params = get_matting_params()
 
-    logger.info(f"Segmentierung: bg={bg} hint={model_hint} model={MODEL_REGISTRY.get(resolved_hint, resolved_hint)}")
+    logger.info(
+        f"Segmentierung: bg={bg} hint={model_hint} model={MODEL_REGISTRY.get(resolved_hint, resolved_hint)}"
+    )
 
-    result_bytes = cast(bytes, remove(
-        img_bytes,
-        session=get_session(resolved_hint),
-        **matting_params,
-    ))
+    result_bytes = cast(
+        bytes,
+        remove(
+            img_bytes,
+            session=get_session(resolved_hint),
+            **matting_params,
+        ),
+    )
     result_img = Image.open(io.BytesIO(result_bytes)).convert("RGBA")
     result_img = clean_alpha_edges(result_img, bg)
     if bg == "dark":
@@ -209,5 +216,3 @@ async def process_image_to_raw_bytes_async(
         model_hint=model_hint,
     )
     return buf.getvalue(), mime
-
-
